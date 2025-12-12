@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Image Upload Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+    }
+    h1 {
+      color: #333;
+      margin: 0 0 30px;
+      text-align: center;
+      font-size: 28px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #555;
+      font-weight: 500;
+    }
+    input[type="file"],
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+      box-sizing: border-box;
+    }
+    input[type="file"]:focus,
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    .preview {
+      margin-top: 20px;
+      text-align: center;
+    }
+    .preview img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .result.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #a5d6a7;
+    }
+    .result.error {
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #ef9a9a;
+    }
+    .progress {
+      margin-top: 10px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      height: 8px;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      width: 0%;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📸 Upload Image</h1>
+    <form id="uploadForm">
+      <div class="form-group">
+        <label for="fileInput">Choose Image:</label>
+        <input type="file" id="fileInput" accept="image/*" required />
+      </div>
+      <button type="submit">Upload</button>
+    </form>
+    <div class="preview" id="preview"></div>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const BASE = (location.protocol === 'file:') ? 'http://localhost:4000' : `${location.protocol}//${location.host}`;
+    const form = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const result = document.getElementById('result');
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          preview.innerHTML = `<img src="${event.target.result}" alt="Preview" />`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      result.innerHTML = '<div class="progress"><div class="progress-bar" id="progressBar"></div></div>';
+
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            document.getElementById('progressBar').style.width = percent + '%';
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const data = JSON.parse(xhr.responseText);
+            result.innerHTML = `
+              <div class="result success">
+                <strong>✓ Upload successful!</strong>
+                <p>Filename: ${data.filename}</p>
+                <p>URL: <a href="${data.url}" target="_blank">${data.url}</a></p>
+              </div>
+            `;
+          } else {
+            const err = JSON.parse(xhr.responseText);
+            result.innerHTML = `<div class="result error"><strong>✗ Upload failed</strong><p>${err.message || 'Unknown error'}</p></div>`;
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          result.innerHTML = '<div class="result error"><strong>✗ Network error</strong></div>';
+        });
+
+        xhr.open('POST', `${BASE}/api/upload`);
+        xhr.send(formData);
+      } catch (err) {
+        result.innerHTML = `<div class="result error"><strong>✗ Error:</strong> ${err.message}</div>`;
+      }
+    });
+  </script>
+</body>
+</html>
